@@ -5,7 +5,8 @@ using Shriek.Messages;
 
 namespace Shriek.Events
 {
-    public class EventMessageSubscriber<TEvent> : IMessageSubscriber<TEvent> where TEvent : Event
+    public class EventMessageSubscriber<TEvent> : IMessageSubscriber<TEvent>
+        where TEvent : IEvent, IMessage
     {
         private IServiceProvider container;
 

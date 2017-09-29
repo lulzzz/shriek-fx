@@ -11,7 +11,7 @@ namespace Shriek.Commands
 {
     public class DefaultCommandContext : ICommandContext, ICommandContextSave
     {
-        private readonly ConcurrentQueue<AggregateRoot> aggregates;
+        private readonly ConcurrentQueue<IAggregateRoot> aggregates;
         private static readonly object _lock = new object();
         private readonly IEventBus eventBus;
         private readonly IEventStorage eventStorage;
@@ -20,7 +20,7 @@ namespace Shriek.Commands
         {
             eventStorage = Container.GetService<IEventStorage>();
             eventBus = Container.GetService<IEventBus>();
-            aggregates = new ConcurrentQueue<AggregateRoot>();
+            aggregates = new ConcurrentQueue<IAggregateRoot>();
         }
 
         public IDictionary<string, object> Items => new Dictionary<string, object>();
@@ -32,9 +32,9 @@ namespace Shriek.Commands
         /// <param name="key"></param>
         /// <param name="initFromRepository"></param>
         /// <returns></returns>
-        TAggregateRoot ICommandContext.GetAggregateRoot<TAggregateRoot>(Guid key, Func<TAggregateRoot> initFromRepository)
+        TAggregateRoot ICommandContext.GetAggregateRoot<TKey, TAggregateRoot>(TKey key, Func<TAggregateRoot> initFromRepository)
         {
-            var obj = GetById<TAggregateRoot>(key);
+            var obj = GetById<TAggregateRoot, TKey>(key);
             if (obj == null)
                 obj = initFromRepository();
 
@@ -44,53 +44,57 @@ namespace Shriek.Commands
             return obj;
         }
 
-        private TAggregateRoot GetById<TAggregateRoot>(Guid Id) where TAggregateRoot : AggregateRoot, new()
+        private TAggregateRoot GetById<TAggregateRoot, TKey>(TKey id)
+            where TAggregateRoot : IAggregateRoot<TKey>, IEventProvider, new()
+            where TKey : IEquatable<TKey>
         {
-            return eventStorage.Source<TAggregateRoot>(Id);
+            return eventStorage.Source<TAggregateRoot, TKey>(id);
         }
 
         public void Save()
         {
             for (var i = 0; i < aggregates.Count; i++)
             {
-                if (aggregates.TryDequeue(out AggregateRoot root) && root.CanCommit)
+                if (aggregates.TryDequeue(out var root) && root.CanCommit)
                 {
                     SaveAggregateRoot(root);
                 }
             }
         }
 
-        private void SaveAggregateRoot<TAggregateRoot>(TAggregateRoot aggregate) where TAggregateRoot : AggregateRoot, IAggregateRoot
+        private void SaveAggregateRoot<TKey>(AggregateRoot<TKey> aggregate)
+            // where TAggregateRoot : IAggregateRoot, IEventProvider, IAggregateRoot<TKey>
+            where TKey : IEquatable<TKey>
         {
-            if (aggregate.GetUncommittedChanges().Any())
-            {
-                //在锁内程序执行过程中，会有多次对该聚合根的更改请求
-                lock (_lock)
-                {
-                    //如果不是新增事件
-                    if (aggregate.Version != -1)
-                    {
-                        var lastestEvent = eventStorage.GetLastEvent(aggregate.AggregateId);
-                        if (lastestEvent != null && lastestEvent.Version != aggregate.Version)
-                        {
-                            throw new Exception("事件库中该聚合的状态版本与当前传入聚合状态版本不同，可能已被更新");
-                        }
-                    }
+            if (!aggregate.GetUncommittedChanges().Any()) return;
 
-                    //保存到事件存储
-                    eventStorage.SaveAggregateRoot(aggregate);
-                    foreach (var @event in aggregate.GetUncommittedChanges())
+            //在锁内程序执行过程中，会有多次对该聚合根的更改请求
+            lock (_lock)
+            {
+                //如果不是新增事件
+                if (aggregate.Version != -1)
+                {
+                    var lastestEvent = eventStorage.GetLastEvent(aggregate.AggregateId);
+                    if (lastestEvent != null && lastestEvent.Version != aggregate.Version)
                     {
-                        eventBus.Publish(@event);
+                        throw new Exception("事件库中该聚合的状态版本与当前传入聚合状态版本不同，可能已被更新");
                     }
                 }
+
+                //保存到事件存储
+                eventStorage.SaveAggregateRoot<TAggregateRoot, TKey>(aggregate);
+                foreach (var @event in aggregate.GetUncommittedChanges())
+                {
+                    eventBus.Publish(@event);
+                }
+
                 aggregate.MarkChangesAsCommitted();
             }
         }
 
-        TAggregateRoot ICommandContext.GetAggregateRoot<TAggregateRoot>(Guid key)
+        TAggregateRoot ICommandContext.GetAggregateRoot<TKey, TAggregateRoot>(TKey key)
         {
-            var obj = GetById<TAggregateRoot>(key);
+            var obj = GetById<TAggregateRoot, TKey>(key);
             if (obj != null)
                 aggregates.Enqueue(obj);
 

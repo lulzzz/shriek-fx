@@ -9,9 +9,10 @@ using System.Linq;
 
 namespace Shriek.Domains
 {
-    public abstract class AggregateRoot<TKey> : IAggregateRoot<TKey>, IEventProvider<TKey>, IOriginator<TKey> where TKey : IEquatable<TKey>
+    public abstract class AggregateRoot<TKey> : IAggregateRoot<TKey>, IEventProvider, IOriginator<TKey>
+        where TKey : IEquatable<TKey>
     {
-        private readonly List<IEvent<TKey>> _changes;
+        private readonly List<IEvent> _changes;
 
         [Key]
         public int Id { get; protected set; }
@@ -27,7 +28,7 @@ namespace Shriek.Domains
 
         protected AggregateRoot(TKey aggregateId)
         {
-            _changes = new List<IEvent<TKey>>();
+            _changes = new List<IEvent>();
             AggregateId = aggregateId;
         }
 
@@ -59,7 +60,7 @@ namespace Shriek.Domains
 
         public override int GetHashCode()
         {
-            return (GetType().GetHashCode() * 907) + AggregateId.GetHashCode();
+            return GetType().GetHashCode() * 907 + AggregateId.GetHashCode();
         }
 
         public override string ToString()
@@ -72,7 +73,7 @@ namespace Shriek.Domains
             _changes.Clear();
         }
 
-        public void LoadsFromHistory(IEnumerable<IEvent<TKey>> history)
+        public void LoadsFromHistory(IEnumerable<IEvent> history)
         {
             foreach (var e in history)
             {
@@ -82,12 +83,12 @@ namespace Shriek.Domains
             EventVersion = Version;
         }
 
-        protected void ApplyChange(IEvent<TKey> @event)
+        protected void ApplyChange(IEvent @event)
         {
             ApplyChange(@event, true);
         }
 
-        protected void ApplyChange(IEvent<TKey> @event, bool isNew)
+        protected void ApplyChange(IEvent @event, bool isNew)
         {
             dynamic d = this;
             d.Handle((dynamic)@event);
@@ -97,7 +98,7 @@ namespace Shriek.Domains
             }
         }
 
-        public IEnumerable<IEvent<TKey>> GetUncommittedChanges()
+        public IEnumerable<IEvent> GetUncommittedChanges()
         {
             return _changes;
         }

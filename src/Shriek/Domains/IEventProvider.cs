@@ -4,11 +4,11 @@ using System.Collections.Generic;
 
 namespace Shriek.Domains
 {
-    public interface IEventProvider<TKey> where TKey : IEquatable<TKey>
+    public interface IEventProvider
     {
-        void LoadsFromHistory(IEnumerable<IEvent<TKey>> history);
+        void LoadsFromHistory(IEnumerable<IEvent> history);
 
-        IEnumerable<IEvent<TKey>> GetUncommittedChanges();
+        IEnumerable<IEvent> GetUncommittedChanges();
 
         void MarkChangesAsCommitted();
     }

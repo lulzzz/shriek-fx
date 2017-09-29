@@ -3,15 +3,17 @@ using System;
 
 namespace Shriek.Notifications
 {
-    public class DomainNotification<TKey> : IEvent<TKey> where TKey : IEquatable<TKey>
+    public class DomainNotification : IEvent<Guid>
     {
-        public Guid DomainNotificationId { get; private set; }
-        public string Key { get; private set; }
-        public string Value { get; private set; }
+        public Guid DomainNotificationId { get; }
+        public string Key { get; }
+        public string Value { get; }
 
         public int Version { get; set; }
 
-        public TKey AggregateId { get; set; }
+        public Guid AggregateId => DomainNotificationId;
+
+        public DateTime Timestamp => DateTime.Now;
 
         public DomainNotification(string key, string value)
         {

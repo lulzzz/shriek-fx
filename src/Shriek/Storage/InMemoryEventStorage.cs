@@ -35,7 +35,9 @@ namespace Shriek.Storage
                 .OrderBy(e => e.Version).LastOrDefault();
         }
 
-        public void SaveAggregateRoot<TAggregateRoot, TKey>(TAggregateRoot aggregate) where TAggregateRoot : IAggregateRoot<TKey> where TKey : IEquatable<TKey>
+        public void SaveAggregateRoot<TAggregateRoot, TKey>(TAggregateRoot aggregate)
+            where TAggregateRoot : IAggregateRoot<TKey>, IEventProvider, IOriginator<TKey>
+            where TKey : IEquatable<TKey>
         {
             var uncommittedChanges = aggregate.GetUncommittedChanges();
             var version = aggregate.Version;
@@ -47,7 +49,7 @@ namespace Shriek.Storage
                 {
                     if (version % 3 == 0)
                     {
-                        var originator = (IOriginator)aggregate;
+                        var originator = (IOriginator<TKey>)aggregate;
                         var memento = originator.GetMemento();
                         memento.Version = version;
                         SaveMemento(memento);
@@ -58,24 +60,27 @@ namespace Shriek.Storage
             }
         }
 
-        public void SaveMemento(Memento memento)
+        public void SaveMemento<TKey>(Memento<TKey> memento)
+            where TKey : IEquatable<TKey>
         {
             _mementoes.Add(memento);
         }
 
-        public void Save<T>(T @event) where T : Event
+        public void Save<TEvent>(TEvent @event) where TEvent : IEvent
         {
             _events.Add(@event);
         }
 
-        public TAggregateRoot Source<TAggregateRoot>(Guid aggregateId) where TAggregateRoot : IAggregateRoot, IEventProvider, new()
+        public TAggregateRoot Source<TAggregateRoot, TKey>(TKey aggregateId)
+            where TAggregateRoot : IAggregateRoot, IEventProvider, new()
+            where TKey : IEquatable<TKey>
         {
             //获取该记录的所有缓存事件
-            IEnumerable<Event> events;
-            Memento memento = null;
+            IEnumerable<IEvent> events;
+            Memento<TKey> memento = null;
             var obj = new TAggregateRoot();
 
-            if (obj is IOriginator)
+            if (obj is IOriginator<TKey>)
             {
                 //获取该记录的更改快照
                 memento = GetMemento(aggregateId);
@@ -86,7 +91,7 @@ namespace Shriek.Storage
                 //获取该记录最后一次快照之后的更改，避免加载过多历史更改
                 events = GetEvents(aggregateId, memento.Version);
                 //从快照恢复
-                ((IOriginator)obj).SetMemento(memento);
+                ((IOriginator<TKey>)obj).SetMemento(memento);
             }
             else
             {
@@ -100,6 +105,14 @@ namespace Shriek.Storage
             //重现历史更改
             obj.LoadsFromHistory(events);
             return obj;
+        }
+
+        public Memento<TKey> GetMemento<TKey>(TKey aggregateId)
+            where TKey : IEquatable<TKey>
+        {
+            var list = _mementoes.Select(x => x as Memento<TKey>);
+
+            return list.LastOrDefault();
         }
     }
 }

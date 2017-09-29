@@ -1,6 +1,8 @@
 ﻿namespace Shriek.Messages
 {
-    public class Message
+    public interface IMessage { }
+
+    public class Message : IMessage
     {
         public Message()
         {

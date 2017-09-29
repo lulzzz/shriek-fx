@@ -4,6 +4,6 @@ namespace Shriek.Messages
 {
     public interface IMessagePublisher : IDisposable
     {
-        void Send<TMessage>(TMessage message) where TMessage : Message;
+        void Send<TMessage>(TMessage message) where TMessage : IMessage;
     }
 }

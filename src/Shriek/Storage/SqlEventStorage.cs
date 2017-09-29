@@ -14,26 +14,27 @@ namespace Shriek.Storage
     {
         private readonly IEventStorageRepository _eventStoreRepository;
         private readonly IMementoRepository _mementoRepository;
-        private readonly ConcurrentDictionary<Guid, ConcurrentBag<IEvent>> _eventsDict;
+        private readonly ConcurrentDictionary<string, ConcurrentBag<IEvent>> _eventsDict;
 
         public SqlEventStorage(IEventStorageRepository eventStoreRepository, IMementoRepository mementoRepository)
         {
             this._eventStoreRepository = eventStoreRepository;
             this._mementoRepository = mementoRepository;
 
-            _eventsDict = new ConcurrentDictionary<Guid, ConcurrentBag<IEvent>>();
+            _eventsDict = new ConcurrentDictionary<string, ConcurrentBag<IEvent>>();
         }
 
-        public IEnumerable<IEvent> GetEvents<TKey>(TKey aggregateId, int afterVersion = 0) where TKey : IEquatable<TKey>
+        public IEnumerable<IEvent> GetEvents<TKey>(TKey aggregateId, int afterVersion = 0)
+            where TKey : IEquatable<TKey>
         {
-            return _eventsDict.GetOrAdd(aggregateId, x =>
+            return _eventsDict.GetOrAdd(aggregateId.ToString(), x =>
             {
                 var storeEvents = _eventStoreRepository.GetEvents(aggregateId, afterVersion);
-                var eventlist = new ConcurrentBag<Event>();
+                var eventlist = new ConcurrentBag<IEvent>();
                 foreach (var e in storeEvents)
                 {
                     var eventType = Type.GetType(e.MessageType);
-                    eventlist.Add(JsonConvert.DeserializeObject(e.Data, eventType) as Event);
+                    eventlist.Add(JsonConvert.DeserializeObject(e.Data, eventType) as Event<TKey>);
                 }
                 return eventlist;
             }).Where(e => e.Version >= afterVersion).OrderBy(e => e.Timestamp);

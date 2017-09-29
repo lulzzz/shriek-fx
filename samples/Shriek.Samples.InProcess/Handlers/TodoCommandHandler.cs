@@ -1,10 +1,12 @@
-﻿using Shriek.Commands;
+﻿using System;
+using Shriek.Commands;
 using Shriek.Samples.Aggregates;
 using Shriek.Samples.Commands;
 
 namespace Shriek.Samples.InProcess.Handlers
 {
-    public class TodoCommandHandler : ICommandHandler<CreateTodoCommand>,
+    public class TodoCommandHandler :
+        ICommandHandler<CreateTodoCommand>,
         ICommandHandler<ChangeTodoCommand>
     {
         public TodoCommandHandler()
